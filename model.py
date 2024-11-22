@@ -102,7 +102,7 @@ if __name__ == '__main__':
     # Process and plot
     from plot_sims import *
     df = sc.loadobj('results/sim.df')
-    plot_sti_sims(df, start_year=2000, end_year=2040, which='single', fext='_alt')
+    plot_bv_sims(df, start_year=2000, end_year=2040, which='single', fext='_alt')
     plot_hiv_sims(df, start_year=2000, which='single')
 
     print('Done.')
