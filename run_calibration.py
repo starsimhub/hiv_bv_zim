@@ -1,6 +1,5 @@
 import starsim as ss
 import sciris as sc
-import vagisim as vs
 import pandas as pd
 from model import make_sim
 from calibration import Calibration
