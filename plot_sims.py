@@ -100,7 +100,7 @@ def plot_hiv_sims(df, start_year=2000, end_year=2025, which='single', percentile
 def plot_bv_sims(df, start_year=2000, end_year=2025, which='single', percentile_pairs=[[.1, .99]], title='sti_plots', fext=None):
     """ Create quantile or individual sim plots of BV """
     set_font(size=30)
-    fig, axes = pl.subplots(3, 1, figsize=(25, 5))
+    fig, axes = pl.subplots(1, 3, figsize=(25, 5))
     axes = axes.ravel()
     if which == 'multi': alphas = np.linspace(0.2, 0.5, len(percentile_pairs))
     dfplot = df.iloc[(df.index >= start_year) & (df.index <= end_year)]

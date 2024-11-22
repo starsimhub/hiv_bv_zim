@@ -6,7 +6,7 @@ from model import make_sim
 from calibration import Calibration
 
 # Settings
-debug = True
+debug = False
 do_save = True
 
 # Run settings for calibration (dependent on debug)
@@ -42,7 +42,7 @@ def run_calib(calib_pars=None):
 
     # Make the sim and data
     sim = make_sim()
-    data = pd.read_csv('data/zimbabwe_hiv_data.csv')
+    data = pd.read_csv('data/zimbabwe_calib_data.csv')
 
     # Make the calibration
     calib = Calibration(
@@ -60,7 +60,7 @@ def run_calib(calib_pars=None):
     # Perform the calibration
     sc.printcyan('\nPeforming calibration...')
     calib.calibrate()
-    return calib
+    return sim, calib
 
 
 #%% Run as a script
@@ -75,6 +75,9 @@ if __name__ == '__main__':
     )
 
     sim, calib = run_calib(calib_pars=calib_pars)
+    from utils import shrink_calib
+    cal = shrink_calib(calib, n_results=100)
+    sc.saveobj('results/calib.obj', cal)
 
     sc.toc(T)
     print('Done.')
