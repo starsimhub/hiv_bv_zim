@@ -1,7 +1,5 @@
 """
-Create a model with HIV plus 4 co-circulating discharging STIs:
-    - chlamydia, gonorrhea, trichomoniasis, and other (BV+)
-Used for evaluation of etiological tests compared to syndromic management.
+Create a model of HIV in Zimbabwe
 """
 
 # %% Imports and settings
@@ -9,77 +7,149 @@ import sciris as sc
 import starsim as ss
 import stisim as sti
 import pandas as pd
-
-from hiv_model import make_hiv, make_hiv_intvs
-from utils import unneeded_results
+import numpy as np
 
 
-def make_bv(beta_m2f=0.2):
-    bv = sti.BV(
-        beta_m2f=beta_m2f,
-        init_prev_data=pd.read_csv('data/init_prev_bv.csv'),
+# %% Interventions
+def get_testing_products():
+    """
+    Define HIV products and testing interventions
+    """
+    scaleup_years = np.arange(1990, 2021)  # Years for testing
+    years = np.arange(1990, 2041)  # Years for simulation
+    n_years = len(scaleup_years)
+    fsw_prob = np.concatenate([np.linspace(0, 0.75, n_years), np.linspace(0.75, 0.85, len(years) - n_years)])
+    low_cd4_prob = np.concatenate([np.linspace(0, 0.85, n_years), np.linspace(0.85, 0.95, len(years) - n_years)])
+    gp_prob = np.concatenate([np.linspace(0, 0.5, n_years), np.linspace(0.5, 0.6, len(years) - n_years)])
+
+    # FSW agents who haven't been diagnosed or treated yet
+    def fsw_eligibility(sim):
+        return sim.networks.structuredsexual.fsw & ~sim.diseases.hiv.diagnosed & ~sim.diseases.hiv.on_art
+
+    fsw_testing = sti.HIVTest(
+        years=years,
+        test_prob_data=fsw_prob,
+        name='fsw_testing',
+        eligibility=fsw_eligibility,
+        label='fsw_testing',
     )
-    return bv
+
+    # Non-FSW agents who haven't been diagnosed or treated yet
+    def other_eligibility(sim):
+        return ~sim.networks.structuredsexual.fsw & ~sim.diseases.hiv.diagnosed & ~sim.diseases.hiv.on_art
+
+    other_testing = sti.HIVTest(
+        years=years,
+        test_prob_data=gp_prob,
+        name='other_testing',
+        eligibility=other_eligibility,
+        label='other_testing',
+    )
+
+    # Agents whose CD4 count is below 200.
+    def low_cd4_eligibility(sim):
+        return (sim.diseases.hiv.cd4 < 200) & ~sim.diseases.hiv.diagnosed
+
+    low_cd4_testing = sti.HIVTest(
+        years=years,
+        test_prob_data=low_cd4_prob,
+        name='low_cd4_testing',
+        eligibility=low_cd4_eligibility,
+        label='low_cd4_testing',
+    )
+
+    return fsw_testing, other_testing, low_cd4_testing
 
 
-def make_sim(seed=1, n_agents=None, beta_m2f=0.15, dt=1/12, start=1980, stop=2030, debug=False, verbose=1/12):
+def make_hiv():
+    """ Make HIV arguments for sim"""
+    hiv = sti.HIV(
+        beta_m2f=0.04,
+        eff_condom=0.95,
+        init_prev_data=pd.read_csv('data/init_prev_hiv.csv'),
+        rel_init_prev=0.8,
+    )
+    return hiv
 
-    total_pop = {1970: 5.203e6, 1980: 7.05e6, 1990: 9980999, 2000: 11.83e6}[start]
-    if n_agents is None: n_agents = [int(5e3), int(5e2)][debug]
-    if dt is None: dt = [1/12, 1][debug]
+
+def make_hiv_intvs():
+
+    n_art = pd.read_csv(f'data/n_art.csv').set_index('year')
+    n_vmmc = pd.read_csv(f'data/n_vmmc.csv').set_index('year')
+    fsw_testing, other_testing, low_cd4_testing = get_testing_products()
+    art = sti.ART(coverage_data=n_art)
+    vmmc = sti.VMMC(coverage_data=n_vmmc)
+    prep = sti.Prep()
+
+    interventions = [
+        fsw_testing,
+        other_testing,
+        low_cd4_testing,
+        art,
+        vmmc,
+        prep,
+    ]
+
+    return interventions
+
+
+def make_sim_components(n_agents=5e3, start=1990, stop=2030, dt=1/12, verbose=1/12, seed=1):
+
+    total_pop = {1970: 5.203e6, 1980: 7.05e6, 1985: 8.691e6, 1990: 9980999, 2000: 11.83e6}[start]
+    sim_args = dict(total_pop=total_pop, start=start, stop=stop, dt=dt, verbose=verbose, rand_seed=seed)
 
     ####################################################################################################################
     # Demographic modules
     ####################################################################################################################
-    fertility_rates = {'fertility_rate': pd.read_csv(f'data/asfr.csv')}
-    pregnancy = ss.Pregnancy(pars=fertility_rates)
-    death_rates = {'death_rate': pd.read_csv(f'data/deaths.csv')}
-    death = ss.Deaths(death_rates)
+    fertility_data = pd.read_csv(f'data/asfr.csv')
+    pregnancy = ss.Pregnancy(fertility_rate=fertility_data)
+    death_data = pd.read_csv(f'data/deaths.csv')
+    death = ss.Deaths(death_rate=death_data, rate_units=1)
+    demographics = [pregnancy, death]
 
     ####################################################################################################################
     # People and networks
     ####################################################################################################################
     ppl = ss.People(n_agents, age_data=pd.read_csv(f'data/age_dist_{start}.csv', index_col='age')['value'])
     sexual = sti.FastStructuredSexual(
-        acts=ss.lognorm_ex(80, 30),
-        prop_f1=0.2,
+        prop_f0=0.8,
         prop_f2=0.05,
-        prop_m1=0.2,
+        prop_m0=0.65,
         f1_conc=0.05,
         f2_conc=0.25,
         m1_conc=0.15,
         m2_conc=0.3,
-        p_pair_form=0.8,  # 0.6,
+        p_pair_form=0.6,  # 0.6,
         condom_data=pd.read_csv(f'data/condom_use.csv'),
     )
     maternal = ss.MaternalNet()
+    networks = [sexual, maternal]
 
     ####################################################################################################################
     # Diseases
     ####################################################################################################################
-    bv = make_bv(beta_m2f=beta_m2f)
     hiv = make_hiv()
-    diseases = [bv, hiv]
+    diseases = [hiv]
 
     ####################################################################################################################
     # Interventions and analyzers
     ####################################################################################################################
     intvs = make_hiv_intvs()
 
+    return sim_args, demographics, ppl, networks, diseases, intvs
+
+
+def make_hiv_sim(start=1990, stop=2030, seed=1):
+    """ Make the HIV sim """
+    sim_args, demographics, ppl, networks, diseases, intvs = make_sim_components(start=start, stop=stop, seed=seed)
     sim = ss.Sim(
-        dt=dt,
-        rand_seed=seed,
-        total_pop=total_pop,
-        start=start,
-        stop=stop,
+        **sim_args,  # Unpack the arguments for the sim
         people=ppl,
         diseases=diseases,
-        networks=[sexual, maternal],
-        demographics=[pregnancy, death],
+        networks=networks,
+        demographics=demographics,
         interventions=intvs,
         analyzers=[],
-        connectors=sti.hiv_bv(hiv, bv),
-        verbose=verbose,
     )
 
     return sim
@@ -88,22 +158,20 @@ def make_sim(seed=1, n_agents=None, beta_m2f=0.15, dt=1/12, start=1980, stop=203
 if __name__ == '__main__':
 
     # SETTINGS
-    debug = False
     seed = 1
     do_run = True
     do_save = True
 
     if do_run:
-        sim = make_sim(seed=seed, debug=debug, start=1980, stop=2030)
-        sim.run(verbose=1/12)
-        df = sti.finalize_results(sim, modules_to_drop=unneeded_results)
-        if do_save: sc.saveobj('results/sim.df', df)
+        sim = make_hiv_sim(seed=seed, start=1990, stop=2030)
+        sim.run()
+        df = sim.to_df(resample='year', use_years=True, sep='.')  # Use dots to separate columns
+        if do_save: sc.saveobj(f'results/hiv_sim.df', df)
 
-    # Process and plot
-    from plot_sims import *
-    df = sc.loadobj('results/sim.df')
-    plot_bv_sims(df, start_year=2000, end_year=2040, which='single', fext='_alt')
-    plot_hiv_sims(df, start_year=2000, which='single')
+        # Process and plot
+        from plot_sims import plot_hiv_sims
+        df = sc.loadobj(f'results/hiv_sim.df')
+        plot_hiv_sims(df, start_year=1990, which='single')
 
     print('Done.')
 
