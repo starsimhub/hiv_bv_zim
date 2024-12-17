@@ -64,10 +64,10 @@ def get_testing_products():
 def make_hiv():
     """ Make HIV arguments for sim"""
     hiv = sti.HIV(
-        beta_m2f=0.036,
+        beta_m2f=0.035,
         eff_condom=0.95,
         init_prev_data=pd.read_csv('data/init_prev_hiv.csv'),
-        rel_init_prev=0.8,
+        rel_init_prev=1.,
     )
     return hiv
 
@@ -171,7 +171,7 @@ if __name__ == '__main__':
         # Process and plot
         from plot_sims import plot_hiv_sims
         df = sc.loadobj(f'results/hiv_sim.df')
-        plot_hiv_sims(df, start_year=1990, which='single')
+        plot_hiv_sims(df, start_year=1990, end_year=2030, which='single')
 
     print('Done.')
 
