@@ -64,7 +64,7 @@ def get_testing_products():
 def make_hiv():
     """ Make HIV arguments for sim"""
     hiv = sti.HIV(
-        beta_m2f=0.037,
+        beta_m2f=0.036,
         eff_condom=0.95,
         init_prev_data=pd.read_csv('data/init_prev_hiv.csv'),
         rel_init_prev=0.8,
