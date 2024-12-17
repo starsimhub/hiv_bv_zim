@@ -23,8 +23,8 @@ def get_testing_products():
     gp_prob = np.concatenate([np.linspace(0, 0.5, n_years), np.linspace(0.5, 0.6, len(years) - n_years)])
 
     # FSW agents who haven't been diagnosed or treated yet
-    def fsw_eligibility(sim):
-        return sim.networks.structuredsexual.fsw & ~sim.diseases.hiv.diagnosed & ~sim.diseases.hiv.on_art
+    def fsw_eligibility(mod):
+        return mod.sim.networks.structuredsexual.fsw & ~mod.sim.diseases.hiv.diagnosed & ~mod.sim.diseases.hiv.on_art
 
     fsw_testing = sti.HIVTest(
         years=years,
@@ -35,8 +35,8 @@ def get_testing_products():
     )
 
     # Non-FSW agents who haven't been diagnosed or treated yet
-    def other_eligibility(sim):
-        return ~sim.networks.structuredsexual.fsw & ~sim.diseases.hiv.diagnosed & ~sim.diseases.hiv.on_art
+    def other_eligibility(mod):
+        return ~mod.sim.networks.structuredsexual.fsw & ~mod.sim.diseases.hiv.diagnosed & ~mod.sim.diseases.hiv.on_art
 
     other_testing = sti.HIVTest(
         years=years,
@@ -47,8 +47,8 @@ def get_testing_products():
     )
 
     # Agents whose CD4 count is below 200.
-    def low_cd4_eligibility(sim):
-        return (sim.diseases.hiv.cd4 < 200) & ~sim.diseases.hiv.diagnosed
+    def low_cd4_eligibility(mod):
+        return (mod.sim.diseases.hiv.cd4 < 200) & ~mod.sim.diseases.hiv.diagnosed
 
     low_cd4_testing = sti.HIVTest(
         years=years,
@@ -64,10 +64,10 @@ def get_testing_products():
 def make_hiv():
     """ Make HIV arguments for sim"""
     hiv = sti.HIV(
-        beta_m2f=0.04,
+        beta_m2f=0.035,
         eff_condom=0.95,
         init_prev_data=pd.read_csv('data/init_prev_hiv.csv'),
-        rel_init_prev=0.8,
+        rel_init_prev=1.,
     )
     return hiv
 
@@ -171,7 +171,7 @@ if __name__ == '__main__':
         # Process and plot
         from plot_sims import plot_hiv_sims
         df = sc.loadobj(f'results/hiv_sim.df')
-        plot_hiv_sims(df, start_year=1990, which='single')
+        plot_hiv_sims(df, start_year=1990, end_year=2030, which='single')
 
     print('Done.')
 
