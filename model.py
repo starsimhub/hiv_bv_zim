@@ -122,7 +122,7 @@ def make_sim_components(n_agents=5e3, start=1990, stop=2030, dt=1/12, verbose=1/
         p_pair_form=0.6,  # 0.6,
         condom_data=pd.read_csv(f'data/condom_use.csv'),
     )
-    maternal = ss.MaternalNet()
+    maternal = ss.MaternalNet(unit='month')
     networks = [sexual, maternal]
 
     ####################################################################################################################
